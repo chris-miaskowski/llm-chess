@@ -12,6 +12,8 @@ export interface GameState {
   board: Square[][];
   currentPlayer: PieceColor;
   status: 'ongoing' | 'check' | 'checkmate' | 'stalemate';
+  aiMode: 'player' | 'teacher';
+  aiLevel: number;
 }
 
 export const initializeGame = (): GameState => {
@@ -34,6 +36,8 @@ export const initializeGame = (): GameState => {
     board: emptyBoard,
     currentPlayer: 'white',
     status: 'ongoing',
+    aiMode: 'player',
+    aiLevel: 1,
   };
 };
 
@@ -182,7 +186,7 @@ const isKingInCheck = (board: Square[][], kingColor: PieceColor): boolean => {
     for (let col = 0; col < 8; col++) {
       const piece = board[row][col];
       if (piece && piece.color !== kingColor) {
-        if (isValidMove({ board, currentPlayer: piece.color, status: 'ongoing' }, [row, col], kingPosition)) {
+        if (isValidMove({ board, currentPlayer: piece.color, status: 'ongoing', aiMode: 'player', aiLevel: 1 }, [row, col], kingPosition)) {
           return true;
         }
       }
@@ -268,6 +272,7 @@ export const movePiece = (gameState: GameState, from: [number, number], to: [num
 
   const newPlayer = gameState.currentPlayer === 'white' ? 'black' : 'white';
   const newGameState: GameState = {
+    ...gameState,
     board: newBoard,
     currentPlayer: newPlayer,
     status: 'ongoing',

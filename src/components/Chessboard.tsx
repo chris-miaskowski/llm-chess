@@ -1,5 +1,13 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { GameState, Square, Piece, initializeGame, movePiece, isValidMove } from '../logic/gameState';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { GameState, Square, Piece, movePiece, isValidMove } from '../logic/gameState';
+import { getAIMove } from '../services/openai';
+
+interface ChessboardProps {
+  initialState: GameState;
+  aiSettings: { apiKey: string; assistantId: string };
+  onSaveGame: (state: GameState) => void;
+  onExitGame: () => void;
+}
 
 interface Move {
   from: [number, number];
@@ -7,33 +15,14 @@ interface Move {
   piece: Piece;
 }
 
-const Chessboard: React.FC = () => {
-  const [gameState, setGameState] = useState<GameState>(initializeGame());
+const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSaveGame, onExitGame }) => {
+  const [gameState, setGameState] = useState<GameState>(initialState);
   const [selectedSquare, setSelectedSquare] = useState<[number, number] | null>(null);
   const [moveHistory, setMoveHistory] = useState<Move[]>([]);
   const [highlightedSquares, setHighlightedSquares] = useState<[number, number][]>([]);
-
-  const handleSquareClick = useCallback((row: number, col: number) => {
-    if (selectedSquare) {
-      const newGameState = movePiece(gameState, selectedSquare, [row, col]);
-      if (newGameState !== gameState) {
-        setGameState(newGameState);
-        setMoveHistory(prev => [...prev, {
-          from: selectedSquare,
-          to: [row, col],
-          piece: gameState.board[selectedSquare[0]][selectedSquare[1]]!
-        }]);
-        setHighlightedSquares([]);
-      }
-      setSelectedSquare(null);
-    } else {
-      const piece = gameState.board[row][col];
-      if (piece && piece.color === gameState.currentPlayer) {
-        setSelectedSquare([row, col]);
-        highlightValidMoves(row, col);
-      }
-    }
-  }, [gameState, selectedSquare]);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [aiExplanation, setAIExplanation] = useState<string>('');
+  const [isAIThinking, setIsAIThinking] = useState<boolean>(false);
 
   const highlightValidMoves = useCallback((row: number, col: number) => {
     const validMoves: [number, number][] = [];
@@ -47,15 +36,68 @@ const Chessboard: React.FC = () => {
     setHighlightedSquares(validMoves);
   }, [gameState]);
 
+  const handleSquareClick = useCallback(async (row: number, col: number) => {
+    if (selectedSquare) {
+      const newGameState = movePiece(gameState, selectedSquare, [row, col]);
+      if (newGameState !== gameState) {
+        setGameState(newGameState);
+        setMoveHistory(prev => [...prev, {
+          from: selectedSquare,
+          to: [row, col],
+          piece: gameState.board[selectedSquare[0]][selectedSquare[1]]!
+        }]);
+        setHighlightedSquares([]);
+
+        // AI's turn
+        if (aiSettings.apiKey && aiSettings.assistantId) {
+          setIsAIThinking(true);
+          try {
+            const aiResponse = await getAIMove({
+              apiKey: aiSettings.apiKey,
+              assistantId: aiSettings.assistantId,
+              mode: gameState.aiMode,
+              level: gameState.aiLevel
+            }, JSON.stringify(newGameState), threadId);
+            setThreadId(aiResponse.threadId);
+            setAIExplanation(aiResponse.explanation);
+            
+            // Parse AI move and update the game state
+            const [fromCol, fromRow, toCol, toRow] = aiResponse.move.split('');
+            const aiFrom: [number, number] = [8 - parseInt(fromRow), fromCol.charCodeAt(0) - 97];
+            const aiTo: [number, number] = [8 - parseInt(toRow), toCol.charCodeAt(0) - 97];
+            const aiNewGameState = movePiece(newGameState, aiFrom, aiTo);
+            setGameState(aiNewGameState);
+            setMoveHistory(prev => [...prev, {
+              from: aiFrom,
+              to: aiTo,
+              piece: newGameState.board[aiFrom[0]][aiFrom[1]]!
+            }]);
+          } catch (error) {
+            console.error('Error getting AI move:', error);
+          } finally {
+            setIsAIThinking(false);
+          }
+        }
+      }
+      setSelectedSquare(null);
+    } else {
+      const piece = gameState.board[row][col];
+      if (piece && piece.color === gameState.currentPlayer) {
+        setSelectedSquare([row, col]);
+        highlightValidMoves(row, col);
+      }
+    }
+  }, [gameState, selectedSquare, aiSettings, threadId, highlightValidMoves]);
+
   const renderPiece = useCallback((piece: Square) => {
     if (!piece) return null;
     const pieceSymbol = getPieceSymbol(piece.type);
-    return <span className={`text-4xl ${piece.color === 'white' ? 'text-white' : 'text-gray-800'}`}>{pieceSymbol}</span>;
+    return <span className={`text-4xl ${piece.color === 'white' ? 'text-gray-200' : 'text-gray-800'}`}>{pieceSymbol}</span>;
   }, []);
 
   const renderSquare = useCallback((row: number, col: number) => {
     const isBlack = (row + col) % 2 === 1;
-    const squareColor = isBlack ? 'bg-green-700' : 'bg-green-100';
+    const squareColor = isBlack ? 'bg-gray-500' : 'bg-gray-400';
     const isSelected = selectedSquare && selectedSquare[0] === row && selectedSquare[1] === col;
     const isHighlighted = highlightedSquares.some(([r, c]) => r === row && c === col);
     const piece = gameState.board[row][col];
@@ -85,6 +127,9 @@ const Chessboard: React.FC = () => {
   }, [renderSquare]);
 
   const getGameStatusMessage = useCallback(() => {
+    if (isAIThinking) {
+      return "AI is thinking...";
+    }
     switch (gameState.status) {
       case 'check':
         return `${gameState.currentPlayer === 'white' ? 'White' : 'Black'} is in check!`;
@@ -95,18 +140,11 @@ const Chessboard: React.FC = () => {
       default:
         return `Current Turn: ${gameState.currentPlayer === 'white' ? 'White' : 'Black'}`;
     }
-  }, [gameState.status, gameState.currentPlayer]);
-
-  const restartGame = useCallback(() => {
-    setGameState(initializeGame());
-    setSelectedSquare(null);
-    setMoveHistory([]);
-    setHighlightedSquares([]);
-  }, []);
+  }, [gameState.status, gameState.currentPlayer, isAIThinking]);
 
   const renderMoveHistory = useCallback(() => {
     return moveHistory.map((move, index) => (
-      <div key={index} className="text-sm">
+      <div key={index} className="text-sm text-gray-300">
         {index + 1}. {getPieceSymbol(move.piece.type)} {String.fromCharCode(97 + move.from[1])}{8 - move.from[0]} to {String.fromCharCode(97 + move.to[1])}{8 - move.to[0]}
       </div>
     ));
@@ -114,29 +152,39 @@ const Chessboard: React.FC = () => {
 
   const memoizedBoard = useMemo(() => renderBoard(), [renderBoard]);
 
+  useEffect(() => {
+    // Save game state after each move
+    onSaveGame(gameState);
+  }, [gameState, onSaveGame]);
+
   return (
-    <div className="flex flex-col items-center p-8 bg-gray-100 min-h-screen">
-      <h1 className="text-4xl font-bold mb-8">Chess Game</h1>
-      <div className="mb-4 text-2xl font-bold bg-white px-4 py-2 rounded shadow">
+    <div className="flex flex-col items-center p-8 bg-gray-800 min-h-screen text-white">
+      <div className="mb-4 text-2xl font-bold bg-gray-700 px-4 py-2 rounded shadow">
         {getGameStatusMessage()}
       </div>
       <div className="flex gap-8">
-        <div className="grid grid-cols-8 gap-0 border-4 border-gray-800 rounded-md overflow-hidden shadow-lg">
+        <div className="grid grid-cols-8 gap-0 border-4 border-gray-600 rounded-md overflow-hidden shadow-lg">
           {memoizedBoard}
         </div>
-        <div className="w-64 bg-white p-4 rounded shadow">
+        <div className="w-64 bg-gray-700 p-4 rounded shadow">
           <h3 className="text-xl font-bold mb-2">Move History</h3>
-          <div className="h-96 overflow-y-auto border border-gray-300 p-2 rounded">
+          <div className="h-72 overflow-y-auto border border-gray-600 p-2 rounded mb-4">
             {renderMoveHistory()}
+          </div>
+          <h3 className="text-xl font-bold mb-2">AI Explanation</h3>
+          <div className="h-24 overflow-y-auto border border-gray-600 p-2 rounded">
+            {aiExplanation}
           </div>
         </div>
       </div>
-      <button
-        className="mt-8 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200 shadow-md"
-        onClick={restartGame}
-      >
-        Restart Game
-      </button>
+      <div className="mt-8">
+        <button
+          className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition duration-200 shadow-md"
+          onClick={onExitGame}
+        >
+          Exit Game
+        </button>
+      </div>
     </div>
   );
 };
