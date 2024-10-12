@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/chess-game/static/css/main.3b91391f.css",
-    "main.js": "/chess-game/static/js/main.b61048eb.js",
-    "static/js/453.bb5b8d3b.chunk.js": "/chess-game/static/js/453.bb5b8d3b.chunk.js",
-    "index.html": "/chess-game/index.html",
-    "main.3b91391f.css.map": "/chess-game/static/css/main.3b91391f.css.map",
-    "main.b61048eb.js.map": "/chess-game/static/js/main.b61048eb.js.map",
-    "453.bb5b8d3b.chunk.js.map": "/chess-game/static/js/453.bb5b8d3b.chunk.js.map"
+    "main.css": "/llm-chess/static/css/main.3b91391f.css",
+    "main.js": "/llm-chess/static/js/main.0d6417b0.js",
+    "static/js/453.13c535b8.chunk.js": "/llm-chess/static/js/453.13c535b8.chunk.js",
+    "index.html": "/llm-chess/index.html",
+    "main.3b91391f.css.map": "/llm-chess/static/css/main.3b91391f.css.map",
+    "main.0d6417b0.js.map": "/llm-chess/static/js/main.0d6417b0.js.map",
+    "453.13c535b8.chunk.js.map": "/llm-chess/static/js/453.13c535b8.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.3b91391f.css",
-    "static/js/main.b61048eb.js"
+    "static/js/main.0d6417b0.js"
   ]
 }
