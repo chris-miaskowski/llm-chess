@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { GameState, Square, Piece, movePiece, isValidMove, checkGameEnd } from '../logic/gameState';
 import { getAIMove } from '../services/openai';
 import { toast } from 'react-toastify';
@@ -17,14 +18,20 @@ interface Move {
   notation: string;
 }
 
+interface Conversation {
+  role: 'user' | 'ai' | 'thinking';
+  content: string;
+}
+
 const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSaveGame, onExitGame }) => {
   const [gameState, setGameState] = useState<GameState>(initialState);
   const [selectedSquare, setSelectedSquare] = useState<[number, number] | null>(null);
   const [moveHistory, setMoveHistory] = useState<Move[]>([]);
   const [highlightedSquares, setHighlightedSquares] = useState<[number, number][]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
-  const [aiExplanation, setAIExplanation] = useState<string>('');
+  const [conversation, setConversation] = useState<Conversation[]>([]);
   const [isAIThinking, setIsAIThinking] = useState<boolean>(false);
+  const conversationRef = useRef<HTMLDivElement>(null);
 
   const highlightValidMoves = useCallback((row: number, col: number) => {
     const validMoves: [number, number][] = [];
@@ -38,7 +45,7 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
     setHighlightedSquares(validMoves);
   }, [gameState]);
 
-  const getMoveNotation = (from: [number, number], to: [number, number], piece: Piece, isCapture: boolean): string => {
+  const getMoveNotation = useCallback((from: [number, number], to: [number, number], piece: Piece, isCapture: boolean): string => {
     const files = 'abcdefgh';
     const fromFile = files[from[1]];
     const fromRank = 8 - from[0];
@@ -66,7 +73,80 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
     }
     
     return notation;
-  };
+  }, [gameState]);
+
+  const handleAIMove = useCallback(async (newGameState: GameState) => {
+    setIsAIThinking(true);
+    setConversation(prev => [...prev, { role: 'thinking', content: 'Analyzing the board...' }]);
+    try {
+      const aiResponse = await getAIMove(
+        {
+          apiKey: aiSettings.apiKey,
+          assistantId: aiSettings.assistantId,
+          mode: newGameState.aiMode,
+          level: newGameState.aiLevel
+        },
+        newGameState,
+        moveHistory,
+        threadId,
+        (thought: string) => {
+          setConversation(prev => {
+            const newConversation = [...prev];
+            const lastMessage = newConversation[newConversation.length - 1];
+            if (lastMessage.role === 'ai') {
+              lastMessage.content = lastMessage.content + thought;
+            } else {
+              newConversation.push({ role: 'ai', content: thought });
+            }
+            return newConversation;
+          });
+        }
+      );
+      setThreadId(aiResponse.threadId);
+      
+      // Parse AI move and update the game state
+      console.log("AI move:", aiResponse.move); // Log the AI's move
+      const [fromCol, fromRow, toCol, toRow] = aiResponse.move.match(/([a-h])([1-8])([a-h])([1-8])/)?.slice(1) || [];
+      if (!fromCol || !fromRow || !toCol || !toRow) {
+        throw new Error('Invalid move format from AI');
+      }
+      const aiFrom: [number, number] = [8 - parseInt(fromRow), fromCol.charCodeAt(0) - 97];
+      const aiTo: [number, number] = [8 - parseInt(toRow), toCol.charCodeAt(0) - 97];
+      
+      if (!isValidMove(newGameState, aiFrom, aiTo)) {
+        throw new Error('Invalid move suggested by AI');
+      }
+      
+      const aiNewGameState = movePiece(newGameState, aiFrom, aiTo);
+      const aiIsCapture = newGameState.board[aiTo[0]][aiTo[1]] !== null;
+      const aiNotation = getMoveNotation(aiFrom, aiTo, newGameState.board[aiFrom[0]][aiFrom[1]]!, aiIsCapture);
+      
+      setGameState(aiNewGameState);
+      setMoveHistory(prev => [...prev, {
+        from: aiFrom,
+        to: aiTo,
+        piece: newGameState.board[aiFrom[0]][aiFrom[1]]!,
+        notation: aiNotation
+      }]);
+      setConversation(prev => {
+        const newConversation = prev.filter(msg => msg.role !== 'thinking');
+        console.log('AI reasoning:\n', aiResponse.chainOfThoughts);
+        newConversation.push({ role: 'ai', content: `Your move :)` });
+        return newConversation;
+      });
+
+      const aiGameEndResult = checkGameEnd(aiNewGameState);
+      if (aiGameEndResult !== 'ongoing') {
+        toast.info(`Game Over: ${aiGameEndResult}`);
+      }
+    } catch (error) {
+      console.error('Error getting AI move:', error);
+      toast.error('Error: The AI encountered a problem making a move.');
+      setConversation(prev => [...prev, { role: 'ai', content: 'Error: The AI encountered a problem making a move.' }]);
+    } finally {
+      setIsAIThinking(false);
+    }
+  }, [aiSettings, threadId, getMoveNotation, moveHistory]);
 
   const handleSquareClick = useCallback(async (row: number, col: number) => {
     if (selectedSquare) {
@@ -88,6 +168,7 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
           notation: notation
         }]);
         setHighlightedSquares([]);
+        setConversation(prev => [...prev, { role: 'user', content: `My move is: ${notation}` }]);
 
         const gameEndResult = checkGameEnd(newGameState);
         if (gameEndResult !== 'ongoing') {
@@ -97,53 +178,7 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
 
         // AI's turn
         if (aiSettings.apiKey && aiSettings.assistantId) {
-          setIsAIThinking(true);
-          try {
-            const aiResponse = await getAIMove({
-              apiKey: aiSettings.apiKey,
-              assistantId: aiSettings.assistantId,
-              mode: newGameState.aiMode,
-              level: newGameState.aiLevel
-            }, newGameState, threadId);
-            setThreadId(aiResponse.threadId);
-            setAIExplanation(aiResponse.explanation);
-            
-            // Parse AI move and update the game state
-            console.log("AI move:", aiResponse.move); // Log the AI's move
-            const [fromCol, fromRow, toCol, toRow] = aiResponse.move.match(/([a-h])([1-8])([a-h])([1-8])/)?.slice(1) || [];
-            if (!fromCol || !fromRow || !toCol || !toRow) {
-              throw new Error('Invalid move format from AI');
-            }
-            const aiFrom: [number, number] = [8 - parseInt(fromRow), fromCol.charCodeAt(0) - 97];
-            const aiTo: [number, number] = [8 - parseInt(toRow), toCol.charCodeAt(0) - 97];
-            
-            if (!isValidMove(newGameState, aiFrom, aiTo)) {
-              throw new Error('Invalid move suggested by AI');
-            }
-            
-            const aiNewGameState = movePiece(newGameState, aiFrom, aiTo);
-            const aiIsCapture = newGameState.board[aiTo[0]][aiTo[1]] !== null;
-            const aiNotation = getMoveNotation(aiFrom, aiTo, newGameState.board[aiFrom[0]][aiFrom[1]]!, aiIsCapture);
-            
-            setGameState(aiNewGameState);
-            setMoveHistory(prev => [...prev, {
-              from: aiFrom,
-              to: aiTo,
-              piece: newGameState.board[aiFrom[0]][aiFrom[1]]!,
-              notation: aiNotation
-            }]);
-
-            const aiGameEndResult = checkGameEnd(aiNewGameState);
-            if (aiGameEndResult !== 'ongoing') {
-              toast.info(`Game Over: ${aiGameEndResult}`);
-            }
-          } catch (error) {
-            console.error('Error getting AI move:', error);
-            toast.error('Error: The AI encountered a problem making a move.');
-            setAIExplanation('Error: The AI encountered a problem making a move.');
-          } finally {
-            setIsAIThinking(false);
-          }
+          await handleAIMove(newGameState);
         }
       }
       setSelectedSquare(null);
@@ -154,7 +189,7 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
         highlightValidMoves(row, col);
       }
     }
-  }, [gameState, selectedSquare, aiSettings, threadId, highlightValidMoves]);
+  }, [gameState, selectedSquare, aiSettings, highlightValidMoves, getMoveNotation, handleAIMove]);
 
   const renderPiece = useCallback((piece: Square) => {
     if (!piece) return null;
@@ -184,11 +219,24 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
   }, [gameState, selectedSquare, highlightedSquares, handleSquareClick, renderPiece]);
 
   const renderBoard = useCallback(() => {
+    const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     return (
-      <div className="grid grid-cols-8 gap-0">
-        {gameState.board.map((row, rowIndex) =>
-          row.map((_, colIndex) => renderSquare(rowIndex, colIndex))
-        )}
+      <div className="relative">
+        <div className="grid grid-cols-8 gap-0">
+          {gameState.board.map((row, rowIndex) =>
+            row.map((_, colIndex) => renderSquare(rowIndex, colIndex))
+          )}
+        </div>
+        <div className="absolute top-0 bottom-0 left-0 flex flex-col justify-around items-end pr-2">
+          {[8, 7, 6, 5, 4, 3, 2, 1].map(num => (
+            <div key={num} className="text-xs text-gray-900">{num}</div>
+          ))}
+        </div>
+        <div className="absolute left-0 right-0 bottom-0 flex justify-around items-center pt-2">
+          {files.map(file => (
+            <div key={file} className="text-xs text-gray-900">{file}</div>
+          ))}
+        </div>
       </div>
     );
   }, [gameState.board, renderSquare]);
@@ -217,12 +265,39 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
     ));
   }, [moveHistory]);
 
+  const renderConversation = useCallback(() => {
+    return conversation.map((message, index) => (
+      <div key={index} className={`p-2 text-left mb-2 rounded ${
+        message.role === 'user' 
+          ? 'bg-blue-600 text-white' 
+          : message.role === 'ai'
+          ? 'bg-gray-600 text-gray-200'
+          : 'bg-yellow-600 text-white'
+      }`}>
+        <ReactMarkdown className="text-sm whitespace-pre-wrap break-words">{message.content}</ReactMarkdown>
+      </div>
+    ));
+  }, [conversation]);
+
   const memoizedBoard = useMemo(() => renderBoard(), [renderBoard]);
 
   useEffect(() => {
     // Save game state after each move
     onSaveGame(gameState);
   }, [gameState, onSaveGame]);
+
+  useEffect(() => {
+    // Scroll to the bottom of the conversation
+    if (conversationRef.current) {
+      conversationRef.current.scrollTop = conversationRef.current.scrollHeight;
+    }
+  }, [conversation]);
+
+  const handleRetryAIMove = useCallback(() => {
+    if (gameState.currentPlayer !== 'white' && !isAIThinking) {
+      handleAIMove(gameState);
+    }
+  }, [gameState, isAIThinking, handleAIMove]);
 
   return (
     <div className="flex flex-col items-center p-8 bg-gray-800 min-h-screen text-white">
@@ -238,10 +313,17 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
           <div className="h-64 overflow-y-auto border border-gray-600 p-2 rounded mb-4">
             {renderMoveHistory()}
           </div>
-          <h3 className="text-xl font-bold mb-2">AI Explanation</h3>
-          <div className="h-64 overflow-y-auto border border-gray-600 p-2 rounded">
-            {aiExplanation}
+          <h3 className="text-lg font-bold mb-2">AI Explanation</h3>
+          <div ref={conversationRef} className="h-64 overflow-y-auto border border-gray-600 p-2 rounded mb-4">
+            {renderConversation()}
           </div>
+          <button
+            className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-200"
+            onClick={handleRetryAIMove}
+            disabled={gameState.currentPlayer === 'white' || isAIThinking}
+          >
+            Your move!
+          </button>
         </div>
       </div>
       <div className="mt-8">

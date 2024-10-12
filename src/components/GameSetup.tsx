@@ -6,7 +6,7 @@ interface GameSetupProps {
 }
 
 const GameSetup: React.FC<GameSetupProps> = ({ onStartGame, onCancel }) => {
-  const [mode, setMode] = useState<'player' | 'teacher'>('player');
+  const [mode, setMode] = useState<'player' | 'teacher'>('teacher');
   const [level, setLevel] = useState<number>(1);
 
   const handleStartGame = () => {
