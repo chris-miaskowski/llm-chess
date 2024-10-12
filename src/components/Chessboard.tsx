@@ -48,7 +48,6 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
   const getMoveNotation = useCallback((from: [number, number], to: [number, number], piece: Piece, isCapture: boolean): string => {
     const files = 'abcdefgh';
     const fromFile = files[from[1]];
-    const fromRank = 8 - from[0];
     const toFile = files[to[1]];
     const toRank = 8 - to[0];
     
@@ -90,11 +89,12 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
         moveHistory,
         threadId,
         (thought: string) => {
+          console.log('AI thought:', thought);
           setConversation(prev => {
             const newConversation = [...prev];
             const lastMessage = newConversation[newConversation.length - 1];
             if (lastMessage.role === 'ai') {
-              lastMessage.content = lastMessage.content + thought;
+              lastMessage.content += thought;
             } else {
               newConversation.push({ role: 'ai', content: thought });
             }
@@ -168,7 +168,7 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
           notation: notation
         }]);
         setHighlightedSquares([]);
-        setConversation(prev => [...prev, { role: 'user', content: `My move is: ${notation}` }]);
+        setConversation(prev => [...prev, { role: 'user', content: `My move: ${notation}` }]);
 
         const gameEndResult = checkGameEnd(newGameState);
         if (gameEndResult !== 'ongoing') {

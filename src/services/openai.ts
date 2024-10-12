@@ -149,7 +149,7 @@ Move History: ${moveHistory.map((move: any) => JSON.stringify(move)).join('\n')}
         {
           assistant_id: settings.assistantId,
           tool_choice: { type: 'function', function: { name: 'make_move' } },
-          instructions: getAIInstructions(settings.mode, settings.level),
+          instructions: getAIInstructions(settings.mode, settings.level) + `\n\nIMPORTANT: You are playing as ${currentPlayer}. Only make moves for ${currentPlayer} pieces.`,
           tools: [
             {
               type: 'function',
@@ -167,7 +167,8 @@ Move History: ${moveHistory.map((move: any) => JSON.stringify(move)).join('\n')}
 3. Evaluate Moves: Score each move based on material gain, positional strength, and king safety.
 4. Predict Opponent's Responses: Simulate the opponent's best possible reactions.
 5. Apply Evaluation Function: Use heuristics or models to score each resulting board state.
-6. Choose Optimal Move: Select the move with the highest evaluation score.`,
+6. Choose Optimal Move: Select the move with the highest evaluation score.
+7. Always start your chain of thoughts by rendering the current board state in ASCII format so that you can visualize the position and avoid illegal moves (provide the ASCII in the chain of thoughts).`,
                     },
                     move: {
                       type: 'string',

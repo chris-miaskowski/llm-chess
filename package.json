@@ -1,8 +1,8 @@
 {
-  "name": "chess-game",
+  "name": "llm-chess",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://yourgithubusername.github.io/chess-game",
+  "homepage": "https://yourgithubusername.github.io/llm-chess",
   "dependencies": {
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
