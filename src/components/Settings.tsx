@@ -1,24 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 interface SettingsProps {
+  initialSettings: { apiKey: string; assistantId: string };
   onSave: (apiKey: string, assistantId: string) => void;
   onCancel: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ onSave, onCancel }) => {
-  const [apiKey, setApiKey] = useState('');
-  const [assistantId, setAssistantId] = useState('');
-
-  useEffect(() => {
-    const savedApiKey = localStorage.getItem('openaiApiKey');
-    const savedAssistantId = localStorage.getItem('openaiAssistantId');
-    if (savedApiKey) setApiKey(savedApiKey);
-    if (savedAssistantId) setAssistantId(savedAssistantId);
-  }, []);
+const Settings: React.FC<SettingsProps> = ({ initialSettings, onSave, onCancel }) => {
+  const [apiKey, setApiKey] = useState(initialSettings.apiKey);
+  const [assistantId, setAssistantId] = useState(initialSettings.assistantId);
 
   const handleSave = () => {
-    localStorage.setItem('openaiApiKey', apiKey);
-    localStorage.setItem('openaiAssistantId', assistantId);
     onSave(apiKey, assistantId);
   };
 

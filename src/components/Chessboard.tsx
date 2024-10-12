@@ -55,14 +55,18 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
             const aiResponse = await getAIMove({
               apiKey: aiSettings.apiKey,
               assistantId: aiSettings.assistantId,
-              mode: gameState.aiMode,
-              level: gameState.aiLevel
-            }, JSON.stringify(newGameState), threadId);
+              mode: newGameState.aiMode,
+              level: newGameState.aiLevel
+            }, newGameState, threadId);
             setThreadId(aiResponse.threadId);
             setAIExplanation(aiResponse.explanation);
             
             // Parse AI move and update the game state
+            console.log("AI move:", aiResponse.move); // Log the AI's move
             const [fromCol, fromRow, toCol, toRow] = aiResponse.move.split('');
+            if (!fromCol || !fromRow || !toCol || !toRow) {
+              throw new Error('Invalid move format from AI');
+            }
             const aiFrom: [number, number] = [8 - parseInt(fromRow), fromCol.charCodeAt(0) - 97];
             const aiTo: [number, number] = [8 - parseInt(toRow), toCol.charCodeAt(0) - 97];
             const aiNewGameState = movePiece(newGameState, aiFrom, aiTo);
@@ -74,6 +78,7 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
             }]);
           } catch (error) {
             console.error('Error getting AI move:', error);
+            setAIExplanation('Error: The AI encountered a problem making a move.');
           } finally {
             setIsAIThinking(false);
           }
@@ -117,14 +122,14 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
   }, [gameState, selectedSquare, highlightedSquares, handleSquareClick, renderPiece]);
 
   const renderBoard = useCallback(() => {
-    const board = [];
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        board.push(renderSquare(row, col));
-      }
-    }
-    return board;
-  }, [renderSquare]);
+    return (
+      <div className="grid grid-cols-8 gap-0">
+        {gameState.board.map((row, rowIndex) =>
+          row.map((_, colIndex) => renderSquare(rowIndex, colIndex))
+        )}
+      </div>
+    );
+  }, [gameState.board, renderSquare]);
 
   const getGameStatusMessage = useCallback(() => {
     if (isAIThinking) {
@@ -163,16 +168,16 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
         {getGameStatusMessage()}
       </div>
       <div className="flex gap-8">
-        <div className="grid grid-cols-8 gap-0 border-4 border-gray-600 rounded-md overflow-hidden shadow-lg">
+        <div className="border-4 border-gray-600 rounded-md overflow-hidden shadow-lg">
           {memoizedBoard}
         </div>
-        <div className="w-64 bg-gray-700 p-4 rounded shadow">
+        <div className="w-96 bg-gray-700 p-4 rounded shadow">
           <h3 className="text-xl font-bold mb-2">Move History</h3>
-          <div className="h-72 overflow-y-auto border border-gray-600 p-2 rounded mb-4">
+          <div className="h-64 overflow-y-auto border border-gray-600 p-2 rounded mb-4">
             {renderMoveHistory()}
           </div>
           <h3 className="text-xl font-bold mb-2">AI Explanation</h3>
-          <div className="h-24 overflow-y-auto border border-gray-600 p-2 rounded">
+          <div className="h-64 overflow-y-auto border border-gray-600 p-2 rounded">
             {aiExplanation}
           </div>
         </div>

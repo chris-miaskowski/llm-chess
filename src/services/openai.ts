@@ -1,16 +1,17 @@
 import OpenAI from 'openai';
 import { AISettings } from '../components/AISettings';
 import { getAIInstructions } from '../utils/aiInstructions';
+import { GameState } from '../logic/gameState';
 
 let openai: OpenAI | null = null;
 
 export const initializeOpenAI = (apiKey: string) => {
-  openai = new OpenAI({ apiKey });
+  openai = new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
 };
 
 export const getAIMove = async (
   settings: AISettings,
-  gameState: string,
+  gameState: GameState,
   threadId: string | null
 ): Promise<{ move: string; explanation: string; threadId: string }> => {
   if (!openai) {
@@ -24,9 +25,16 @@ export const getAIMove = async (
     thread = await openai.beta.threads.create();
   }
 
+  const boardState = JSON.stringify(gameState.board);
+  const currentPlayer = gameState.currentPlayer;
+  const gameStatus = gameState.status;
+
   await openai.beta.threads.messages.create(thread.id, {
     role: 'user',
-    content: `Current game state: ${gameState}`,
+    content: `Current game state:
+Board: ${boardState}
+Current player: ${currentPlayer}
+Game status: ${gameStatus}`,
   });
 
   const run = await openai.beta.threads.runs.create(thread.id, {
@@ -55,15 +63,27 @@ export const getAIMove = async (
   }
 
   const response = content.text.value;
+  console.log("Raw AI response:", response); // Log the raw response
+
   let move, explanation;
 
   if (settings.mode === 'player') {
-    [move, explanation] = response.split('\nExplanation: ');
-    move = move.replace('Move: ', '').trim();
+    const moveMatch = response.match(/Move:\s*([a-h][1-8][a-h][1-8])/);
+    if (moveMatch) {
+      move = moveMatch[1];
+      explanation = response.replace(moveMatch[0], '').trim();
+    } else {
+      throw new Error('Invalid move format in AI response');
+    }
   } else {
     const parts = response.split('\n');
-    explanation = parts.slice(0, -1).join('\n');
-    move = parts[parts.length - 1].replace('Suggestion: ', '').trim();
+    const moveMatch = parts[parts.length - 1].match(/Suggestion:\s*([a-h][1-8][a-h][1-8])/);
+    if (moveMatch) {
+      move = moveMatch[1];
+      explanation = parts.slice(0, -1).join('\n').trim();
+    } else {
+      throw new Error('Invalid move format in AI response');
+    }
   }
 
   return {
