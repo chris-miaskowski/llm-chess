@@ -40,55 +40,64 @@ Game status: ${gameStatus}`,
   const run = await openai.beta.threads.runs.create(thread.id, {
     assistant_id: settings.assistantId,
     instructions: getAIInstructions(settings.mode, settings.level),
+    tools: [
+      {
+        type: "function",
+        function: {
+          name: "make_move",
+          description: "Make a chess move and provide commentary",
+          parameters: {
+            type: "object",
+            properties: {
+              move: {
+                type: "string",
+                description: "The chess move in algebraic notation (e.g., 'e2e4', 'Nf3', 'O-O')",
+              },
+              comment: {
+                type: "string",
+                description: "Commentary or explanation for the move",
+              },
+            },
+            required: ["move", "comment"],
+            additionalProperties: false
+          },
+          strict: true
+        },
+      },
+    ],
   });
 
   let runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
 
   while (runStatus.status !== 'completed') {
+    if (runStatus.status === 'requires_action') {
+      const toolCalls = runStatus.required_action?.submit_tool_outputs.tool_calls;
+      if (toolCalls && toolCalls.length > 0) {
+        const toolCall = toolCalls[0];
+        if (toolCall.function.name === 'make_move') {
+          const functionArgs = JSON.parse(toolCall.function.arguments);
+          
+          // Submit the tool outputs back to the run
+          await openai.beta.threads.runs.submitToolOutputs(thread.id, run.id, {
+            tool_outputs: [
+              {
+                tool_call_id: toolCall.id,
+                output: JSON.stringify({ success: true }),
+              },
+            ],
+          });
+
+          return {
+            move: functionArgs.move,
+            explanation: functionArgs.comment,
+            threadId: thread.id,
+          };
+        }
+      }
+    }
     await new Promise((resolve) => setTimeout(resolve, 1000));
     runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
   }
 
-  const messages = await openai.beta.threads.messages.list(thread.id);
-  const lastMessage = messages.data[0];
-
-  if (lastMessage.role !== 'assistant') {
-    throw new Error('Unexpected response from AI');
-  }
-
-  const content = lastMessage.content[0];
-
-  if (content.type !== 'text') {
-    throw new Error('Unexpected content type from AI');
-  }
-
-  const response = content.text.value;
-  console.log("Raw AI response:", response); // Log the raw response
-
-  let move, explanation;
-
-  if (settings.mode === 'player') {
-    const moveMatch = response.match(/Move:\s*([a-h][1-8][a-h][1-8])/);
-    if (moveMatch) {
-      move = moveMatch[1];
-      explanation = response.replace(moveMatch[0], '').trim();
-    } else {
-      throw new Error('Invalid move format in AI response');
-    }
-  } else {
-    const parts = response.split('\n');
-    const moveMatch = parts[parts.length - 1].match(/Suggestion:\s*([a-h][1-8][a-h][1-8])/);
-    if (moveMatch) {
-      move = moveMatch[1];
-      explanation = parts.slice(0, -1).join('\n').trim();
-    } else {
-      throw new Error('Invalid move format in AI response');
-    }
-  }
-
-  return {
-    move,
-    explanation,
-    threadId: thread.id,
-  };
+  throw new Error('AI did not make a move');
 };

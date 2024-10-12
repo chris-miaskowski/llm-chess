@@ -290,3 +290,14 @@ export const movePiece = (gameState: GameState, from: [number, number], to: [num
 
   return newGameState;
 };
+
+export const checkGameEnd = (gameState: GameState): GameState['status'] => {
+  if (isCheckmate(gameState)) {
+    return 'checkmate';
+  } else if (isStalemate(gameState)) {
+    return 'stalemate';
+  } else if (isKingInCheck(gameState.board, gameState.currentPlayer)) {
+    return 'check';
+  }
+  return 'ongoing';
+};

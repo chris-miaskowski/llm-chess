@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { GameState, Square, Piece, movePiece, isValidMove } from '../logic/gameState';
+import { GameState, Square, Piece, movePiece, isValidMove, checkGameEnd } from '../logic/gameState';
 import { getAIMove } from '../services/openai';
+import { toast } from 'react-toastify';
 
 interface ChessboardProps {
   initialState: GameState;
@@ -13,6 +14,7 @@ interface Move {
   from: [number, number];
   to: [number, number];
   piece: Piece;
+  notation: string;
 }
 
 const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSaveGame, onExitGame }) => {
@@ -36,17 +38,62 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
     setHighlightedSquares(validMoves);
   }, [gameState]);
 
+  const getMoveNotation = (from: [number, number], to: [number, number], piece: Piece, isCapture: boolean): string => {
+    const files = 'abcdefgh';
+    const fromFile = files[from[1]];
+    const fromRank = 8 - from[0];
+    const toFile = files[to[1]];
+    const toRank = 8 - to[0];
+    
+    let notation = '';
+    
+    if (piece.type === 'pawn') {
+      if (isCapture) {
+        notation = `${fromFile}x${toFile}${toRank}`;
+      } else {
+        notation = `${toFile}${toRank}`;
+      }
+    } else {
+      notation = `${piece.type.toUpperCase()}${isCapture ? 'x' : ''}${toFile}${toRank}`;
+    }
+    
+    // Add check or checkmate symbol if applicable
+    const newStatus = checkGameEnd(gameState);
+    if (newStatus === 'check') {
+      notation += '+';
+    } else if (newStatus === 'checkmate') {
+      notation += '#';
+    }
+    
+    return notation;
+  };
+
   const handleSquareClick = useCallback(async (row: number, col: number) => {
     if (selectedSquare) {
+      if (!isValidMove(gameState, selectedSquare, [row, col])) {
+        toast.error("Invalid move!");
+        return;
+      }
+
       const newGameState = movePiece(gameState, selectedSquare, [row, col]);
       if (newGameState !== gameState) {
+        const isCapture = gameState.board[row][col] !== null;
+        const notation = getMoveNotation(selectedSquare, [row, col], gameState.board[selectedSquare[0]][selectedSquare[1]]!, isCapture);
+        
         setGameState(newGameState);
         setMoveHistory(prev => [...prev, {
           from: selectedSquare,
           to: [row, col],
-          piece: gameState.board[selectedSquare[0]][selectedSquare[1]]!
+          piece: gameState.board[selectedSquare[0]][selectedSquare[1]]!,
+          notation: notation
         }]);
         setHighlightedSquares([]);
+
+        const gameEndResult = checkGameEnd(newGameState);
+        if (gameEndResult !== 'ongoing') {
+          toast.info(`Game Over: ${gameEndResult}`);
+          return;
+        }
 
         // AI's turn
         if (aiSettings.apiKey && aiSettings.assistantId) {
@@ -63,21 +110,36 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
             
             // Parse AI move and update the game state
             console.log("AI move:", aiResponse.move); // Log the AI's move
-            const [fromCol, fromRow, toCol, toRow] = aiResponse.move.split('');
+            const [fromCol, fromRow, toCol, toRow] = aiResponse.move.match(/([a-h])([1-8])([a-h])([1-8])/)?.slice(1) || [];
             if (!fromCol || !fromRow || !toCol || !toRow) {
               throw new Error('Invalid move format from AI');
             }
             const aiFrom: [number, number] = [8 - parseInt(fromRow), fromCol.charCodeAt(0) - 97];
             const aiTo: [number, number] = [8 - parseInt(toRow), toCol.charCodeAt(0) - 97];
+            
+            if (!isValidMove(newGameState, aiFrom, aiTo)) {
+              throw new Error('Invalid move suggested by AI');
+            }
+            
             const aiNewGameState = movePiece(newGameState, aiFrom, aiTo);
+            const aiIsCapture = newGameState.board[aiTo[0]][aiTo[1]] !== null;
+            const aiNotation = getMoveNotation(aiFrom, aiTo, newGameState.board[aiFrom[0]][aiFrom[1]]!, aiIsCapture);
+            
             setGameState(aiNewGameState);
             setMoveHistory(prev => [...prev, {
               from: aiFrom,
               to: aiTo,
-              piece: newGameState.board[aiFrom[0]][aiFrom[1]]!
+              piece: newGameState.board[aiFrom[0]][aiFrom[1]]!,
+              notation: aiNotation
             }]);
+
+            const aiGameEndResult = checkGameEnd(aiNewGameState);
+            if (aiGameEndResult !== 'ongoing') {
+              toast.info(`Game Over: ${aiGameEndResult}`);
+            }
           } catch (error) {
             console.error('Error getting AI move:', error);
+            toast.error('Error: The AI encountered a problem making a move.');
             setAIExplanation('Error: The AI encountered a problem making a move.');
           } finally {
             setIsAIThinking(false);
@@ -150,7 +212,7 @@ const Chessboard: React.FC<ChessboardProps> = ({ initialState, aiSettings, onSav
   const renderMoveHistory = useCallback(() => {
     return moveHistory.map((move, index) => (
       <div key={index} className="text-sm text-gray-300">
-        {index + 1}. {getPieceSymbol(move.piece.type)} {String.fromCharCode(97 + move.from[1])}{8 - move.from[0]} to {String.fromCharCode(97 + move.to[1])}{8 - move.to[0]}
+        {Math.floor(index / 2) + 1}. {index % 2 === 0 ? '' : '... '}{move.notation}
       </div>
     ));
   }, [moveHistory]);
