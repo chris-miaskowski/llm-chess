@@ -1,46 +1,61 @@
-# Getting Started with Create React App
+# LLM-Powered Chess Teacher
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## About the Project
 
-## Available Scripts
+This project is an innovative, AI-powered chess game designed to serve as an interactive chess teacher. Leveraging the power of Large Language Models (LLMs), this application offers a unique learning experience for chess players of all levels. 
 
-In the project directory, you can run:
+What makes this project special is that approximately 95% of the code was implemented using the KODU.AI VSCode extension, showcasing the potential of  AI-assisted development in creating complex, educational applications.
 
-### `npm start`
+[!Videoq](https://www.youtube.com/watch?v=J1jD4J2Y_qo)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Features
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+- Interactive chess game with a built-in AI opponent
+- Adaptive difficulty levels to match player skill
+- Real-time analysis and explanations of moves
+- Educational insights into chess strategies and tactics
+- Suitable for beginners to advanced players
 
-### `npm test`
+## How to Play
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. Visit the game at [https://chris-miaskowski.github.io/llm-chess](https://chris-miaskowski.github.io/llm-chess/)
+2. Go to settings and insert your OpenAI key as well as Assistant ID
+3. Choose your preferred game mode and difficulty level
+4. Make your moves by clicking on the piece you want to move and then clicking on the destination square
+5. The AI will respond with its move and provide explanations or teaching points
+6. Learn from the AI's insights and improve your chess skills as you play!
 
-### `npm run build`
+## Educational Potential
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+This LLM-powered chess teacher has significant potential in educational settings:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- Personalized learning: Adapts to each student's skill level
+- Immediate feedback: Provides real-time analysis of moves
+- Conceptual understanding: Explains the reasoning behind moves and strategies
+- Engaging format: Combines gameplay with learning for increased engagement
+- Accessibility: Available anytime, anywhere with an internet connection
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+## Technical Implementation
 
-### `npm run eject`
+This project demonstrates the capabilities of AI-assisted development:
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+- 95% of the code was generated and implemented using the KODU.AI VSCode extension
+- Integrates advanced LLM technology for game analysis and teaching
+- Combines React for the frontend with a robust backend for AI processing
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Future Developments
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+We envision expanding this project to include:
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+- Multiplayer functionality for peer learning
+- Integration with established chess curricula
+- More advanced analytics to track player progress over time
+- Customizable lesson plans for chess instructors
 
-## Learn More
+## Acknowledgments
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Special thanks to the KODU.AI team for developing the VSCode extension that made this project possible. This project stands as a testament to the potential of AI-assisted development in creating educational tools.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+---
+
+We welcome contributions and feedback to improve this LLM-powered chess teacher. Together, we can revolutionize how chess is taught and learned in the digital age!

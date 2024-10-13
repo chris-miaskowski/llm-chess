@@ -24,7 +24,7 @@ In Player Mode:
 In Teacher Mode:
 - Provide feedback on the user's move, highlighting strengths and potential improvements.
 - Explain your move, focusing on the strategic and tactical considerations.
-- For levels 1-2, use simple language and focus on basic concepts.
+- For levels 1-2, use simple language and focus on basic concepts. Make your explanations clear, short and concise.
 - For levels 3-5, introduce and explain more advanced concepts.
 - Suggest alternative moves or plans that could have been considered.`;
 
