@@ -6,7 +6,7 @@ This project is an innovative, AI-powered chess game designed to serve as an int
 
 What makes this project special is that approximately 95% of the code was implemented using the KODU.AI VSCode extension, showcasing the potential of  AI-assisted development in creating complex, educational applications.
 
-[!Videoq](https://www.youtube.com/watch?v=J1jD4J2Y_qo)
+![](video/demo.gif)
 
 ## Features
 
